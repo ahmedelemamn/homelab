@@ -1,0 +1,85 @@
+version: '3'
+networks:
+  proxy:
+    external: true
+services:
+  mongo:
+    image: mongo:6.0.5-jammy
+    container_name: mongodb
+    volumes:
+    - /home/user/greylog-nas/db:/data/db
+    ports:
+    - 27017:27017/tcp
+    networks:
+    - proxy
+    restart: unless-stopped
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch
+    user: 1000:1000
+    environment:
+    - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+    - bootstrap.memory_lock=true
+    - discovery.type=single-node
+    - action.auto_create_index=false
+    - plugins.security.ssl.http.enabled=false
+    - plugins.security.disabled=true
+    volumes:
+    - /mnt/logs/data:/usr/share/opensearch/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+    - 9200:9200/tcp
+    networks:
+    - proxy
+    restart: unless-stopped
+  graylog:
+    image: graylog/graylog:5.2
+    container_name: graylog
+    user: root
+    environment:
+      GRAYLOG_PASSWORD_SECRET: MASKED
+      GRAYLOG_ROOT_PASSWORD_SHA2: MASKED
+      GRAYLOG_HTTP_BIND_ADDRESS: 0.0.0.0:9000
+      GRAYLOG_ELASTICSEARCH_HOSTS: http://opensearch:9200
+      GRAYLOG_MONGODB_URI: mongodb://mongodb:27017/graylog
+      GRAYLOG_TIMEZONE: Australia/Sydney
+      TZ: Australia/Sydney
+    entrypoint: /usr/bin/tini -- wait-for-it 192.168.0.150:9200 -- /docker-entrypoint.sh
+    volumes:
+    - /home/user/greylog-nas/config/graylog.conf:/usr/share/graylog/data/config/graylog.conf
+    - /home/user/greylog-nas/data:/usr/share/graylog/data"
+    networks:
+    - proxy
+    restart: unless-stopped
+    depends_on:
+      opensearch:
+        condition: service_started
+      mongo:
+        condition: service_started
+    ports:
+    - 1514:1514/tcp
+    - 1514:1514/udp
+    - 1516:1516/udp
+    - 1517:1517/udp
+    - 1518:1518/udp
+    - 1519:1519/udp
+    - 12201:12201/tcp
+    - 12201:12201/udp
+    labels:
+    - traefik.enable=true
+    - traefik.http.routers.greylog.entrypoints=http
+    - traefik.http.routers.greylog.rule=Host(`greylog.local.example.com`)
+    - traefik.http.middlewares.greylog-https-redirect.redirectscheme.scheme=https
+    - traefik.http.routers.greylog.middlewares=greylog-https-redirect
+    - traefik.http.routers.greylog-secure.entrypoints=https
+    - traefik.http.routers.greylog-secure.rule=Host(`greylog.local.example.com`)
+    - traefik.http.routers.greylog-secure.tls=true
+    - traefik.http.routers.greylog-secure.service=greylog
+    - traefik.http.services.greylog.loadbalancer.server.port=9000
+    - traefik.docker.network=proxy

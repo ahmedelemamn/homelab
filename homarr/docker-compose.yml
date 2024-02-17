@@ -1,0 +1,32 @@
+version: '3'
+services:
+  homarr:
+    image: ghcr.io/ajnart/homarr:latest
+    container_name: homarr
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:false
+    networks:
+    - proxy
+    volumes:
+    - /etc/localtime:/etc/localtime
+    - /home/user/homarr/config:/app/data/configs
+    - /home/user/homarr/icons:/app/public/icons
+    - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+    - TZ=Australia/Sydney
+    labels:
+    - traefik.enable=true
+    - traefik.http.routers.homarr.entrypoints=http
+    - traefik.http.routers.homarr.rule=Host(`homarr.local.example.com`)
+    - traefik.http.middlewares.homarr-https-redirect.redirectscheme.scheme=https
+    - traefik.http.routers.homarr.middlewares=homarr-https-redirect
+    - traefik.http.routers.homarr-secure.entrypoints=https
+    - traefik.http.routers.homarr-secure.rule=Host(`homarr.local.example.com`)
+    - traefik.http.routers.homarr-secure.tls=true
+    - traefik.http.routers.homarr-secure.service=homarr
+    - traefik.http.services.homarr.loadbalancer.server.port=7575
+    - traefik.docker.network=proxy
+networks:
+  proxy:
+    external: true

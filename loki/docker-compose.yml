@@ -1,0 +1,26 @@
+version: '3'
+networks:
+  proxy:
+    external: true
+services:
+  loki:
+    image: grafana/loki:latest
+    security_opt:
+    - no-new-privileges:false
+    volumes:
+    - /home/user/loki/volume:/etc/loki
+    ports:
+    - 3100:3100
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    networks:
+    - proxy
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+    - /var/log:/var/log
+    - /home/user/promtail/volume:/etc/promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yml
+    networks:
+    - proxy

@@ -1,0 +1,65 @@
+version: '3'
+services:
+  immich:
+    image: ghcr.io/imagegenius/immich:latest
+    container_name: immich
+    environment:
+    - PUID=1000
+    - PGID=1000
+    - TZ=Australia/Sydney
+    - DB_HOSTNAME=192.168.0.150
+    - DB_USERNAME=postgres
+    - DB_PASSWORD=CK.LkB@ZzMx6Cf2oK
+    - DB_DATABASE_NAME=immich
+    - REDIS_HOSTNAME=192.168.0.150
+    - DISABLE_MACHINE_LEARNING=false
+    - DISABLE_TYPESENSE=false
+    - DB_PORT=5432
+    - REDIS_PORT=6379
+    - MACHINE_LEARNING_WORKERS=1
+    - MACHINE_LEARNING_WORKER_TIMEOUT=120
+    volumes:
+    - /home/user/immich-app/config:/config
+    - /mnt/photos:/photos
+    - /home/user/immich-app/machine-learning:/config/machine-learning
+    - /mnt/photos/upload:/import
+    restart: unless-stopped
+    networks:
+    - proxy
+    labels:
+    - traefik.enable=true
+    - traefik.http.routers.photos.entrypoints=http
+    - traefik.http.routers.photos.rule=Host(`photos.local.example.com`)
+    - traefik.http.middlewares.photos-https-redirect.redirectscheme.scheme=https
+    - traefik.http.routers.photos.middlewares=photos-https-redirect
+    - traefik.http.routers.photos-secure.entrypoints=https
+    - traefik.http.routers.photos-secure.rule=Host(`photos.local.example.com`)
+    - traefik.http.routers.photos-secure.tls=true
+    - traefik.http.routers.photos-secure.service=photos
+    - traefik.http.services.photos.loadbalancer.server.port=8080
+    - traefik.docker.network=proxy
+  redis:
+    image: redis
+    ports:
+    - 6379:6379
+    container_name: redis
+    restart: unless-stopped
+    networks:
+    - proxy
+  postgres14:
+    image: tensorchord/pgvecto-rs:pg14-v0.1.11
+    ports:
+    - 5432:5432
+    container_name: postgres14
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: MASKED
+      POSTGRES_DB: immich
+    volumes:
+    - /home/user/immich-app/pgdata:/var/lib/postgresql/data
+    networks:
+    - proxy
+networks:
+  proxy:
+    external: true

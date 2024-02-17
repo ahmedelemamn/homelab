@@ -1,0 +1,117 @@
+version: '3'
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
+networks:
+  proxy:
+    external: true
+  back-tier: null
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+    - ./prometheus/:/etc/prometheus/
+    - prometheus_data:/prometheus
+    - /etc/localtime:/etc/localtime
+    - /var/run/docker.sock:/var/run/docker.sock
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --storage.tsdb.path=/prometheus
+    - --web.console.libraries=/usr/share/prometheus/console_libraries
+    - --web.console.templates=/usr/share/prometheus/consoles
+    ports:
+    - 9090:9090
+    links:
+    - ping:ping
+    - speedtest:speedtest
+    networks:
+    - back-tier
+  grafana:
+    image: grafana/grafana-oss:latest
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges:false
+    volumes:
+    - grafana_data:/var/lib/grafana
+    - ./grafana/provisioning/:/etc/grafana/provisioning/
+    - /etc/localtime:/etc/localtime
+    - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+    - prometheus
+    env_file:
+    - ./grafana/config.monitoring
+    networks:
+    - back-tier
+    - proxy
+    labels:
+    - traefik.enable=true
+    - traefik.http.routers.monitor.entrypoints=http
+    - traefik.http.routers.monitor.rule=Host(`monitor.local.example.com`)
+    - traefik.http.middlewares.monitor-https-redirect.redirectscheme.scheme=https
+    - traefik.http.routers.monitor.middlewares=monitor-https-redirect
+    - traefik.http.routers.monitor-secure.entrypoints=https
+    - traefik.http.routers.monitor-secure.rule=Host(`monitor.local.example.com`)
+    - traefik.http.routers.monitor-secure.tls=true
+    - traefik.http.routers.monitor-secure.service=monitor
+    - traefik.http.services.monitor.loadbalancer.server.port=3000
+    - traefik.docker.network=proxy
+  ping:
+    tty: true
+    stdin_open: true
+    expose:
+    - 9115
+    ports:
+    - 9115:9115
+    image: prom/blackbox-exporter
+    restart: unless-stopped
+    volumes:
+    - ./blackbox/config:/config
+    - /etc/localtime:/etc/localtime
+    - /var/run/docker.sock:/var/run/docker.sock
+    command:
+    - --config.file=/config/blackbox.yml
+    networks:
+    - back-tier
+  speedtest:
+    tty: true
+    stdin_open: true
+    expose:
+    - 9798
+    ports:
+    - 9798:9798
+    image: miguelndecarvalho/speedtest-exporter
+    restart: unless-stopped
+    networks:
+    - back-tier
+  nodeexp:
+    privileged: true
+    image: prom/node-exporter
+    volumes:
+    - /proc:/host/proc:ro
+    - /sys:/host/sys:ro
+    - /:/rootfs:ro
+    - /etc/localtime:/etc/localtime
+    - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+    - 9100:9100
+    restart: unless-stopped
+    command:
+    - --path.procfs=/host/proc
+    - --path.sysfs=/host/sys
+    - --collector.filesystem.ignored-mount-points
+    - ^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)
+    networks:
+    - back-tier
+  snmp_exporter:
+    image: prom/snmp-exporter
+    container_name: mk_snmp_exporter
+    restart: unless-stopped
+    volumes:
+    - ./snmp/:/etc/snmp_exporter/
+    ports:
+    - 19116:9116
+    depends_on:
+    - prometheus
+    networks:
+    - back-tier

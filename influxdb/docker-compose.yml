@@ -1,0 +1,32 @@
+version: '3'
+services:
+  influxdb:
+    container_name: influxdb
+    image: influxdb:latest
+    restart: unless-stopped
+    networks:
+    - im_back-tier
+    - proxy
+    volumes:
+    - /home/user/influxdb/influxdb-data:/var/lib/influxdb2
+    - /home/user/influxdb/influxdb2:/etc/influxdb2
+    - /etc/localtime:/etc/localtime
+    - /var/run/docker.sock:/var/run/docker.sock
+    security_opt:
+    - no-new-privileges:false
+    labels:
+    - traefik.enable=true
+    - traefik.http.routers.influxdb.entrypoints=http
+    - traefik.http.routers.influxdb.rule=Host(`influxdb.local.example.com`)
+    - traefik.http.middlewares.influxdb-https-redirect.redirectscheme.scheme=https
+    - traefik.http.routers.influxdb.middlewares=influxdb-https-redirect
+    - traefik.http.routers.influxdb-secure.entrypoints=https
+    - traefik.http.routers.influxdb-secure.rule=Host(`influxdb.local.example.com`)
+    - traefik.http.routers.influxdb-secure.tls=true
+    - traefik.http.routers.influxdb-secure.service=influxdb
+    - traefik.http.services.influxdb.loadbalancer.server.port=8086
+    - traefik.docker.network=proxy
+networks:
+  proxy:
+    external: true
+  im_back-tier: null

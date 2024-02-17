@@ -1,0 +1,32 @@
+version: '3.9'
+services:
+  it-tools:
+    image: corentinth/it-tools:latest
+    restart: unless-stopped
+    container_name: it-tools
+    security_opt:
+    - no-new-privileges:false
+    environment:
+    - PGID=1000
+    - PUID=1000
+    - TZ=Australia/Sydney
+    networks:
+    - proxy
+    volumes:
+    - /etc/localtime:/etc/localtime
+    - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+    - traefik.enable=true
+    - traefik.http.routers.tools.entrypoints=http
+    - traefik.http.routers.tools.rule=Host(`tools.local.example.com`)
+    - traefik.http.middlewares.tools-https-redirect.redirectscheme.scheme=https
+    - traefik.http.routers.tools.middlewares=tools-https-redirect
+    - traefik.http.routers.tools-secure.entrypoints=https
+    - traefik.http.routers.tools-secure.rule=Host(`tools.local.example.com`)
+    - traefik.http.routers.tools-secure.tls=true
+    - traefik.http.routers.tools-secure.service=tools
+    - traefik.http.services.tools.loadbalancer.server.port=80
+    - traefik.docker.network=proxy
+networks:
+  proxy:
+    external: true

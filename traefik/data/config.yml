@@ -1,0 +1,160 @@
+http:
+ #region routers 
+  routers:
+    proxmox:
+      entryPoints:
+        - "https"
+      rule: "Host(`pve.local.example.com`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: proxmox
+    homebridge:
+      entryPoints:
+        - "https"
+      rule: "Host(`homebridge.local.example.com`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: homebridge
+    pihole:
+      entryPoints:
+        - "https"
+      rule: "Host(`pihole.local.example.com`)"
+      middlewares:
+        - default-headers
+        - addprefix-pihole
+        - https-redirectscheme
+      tls: {}
+      service: pihole
+    truenas-main:
+      entryPoints:
+        - "https"
+      rule: "Host(`truenas-main.local.example.com`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: truenas-main
+    plex-main:
+      entryPoints:
+        - "https"
+      rule: "Host(`plex-main.local.example.com`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: plex-main
+    nextcloud:
+      entryPoints:
+        - "https"
+      rule: "Host(`nextcloud.local.example.com`)"
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+        - nextcloud-middlewares-secure-headers
+        - nextcloud-redirect
+      tls: {}
+      service: nextcloud
+#endregion
+#region services
+  services:
+    proxmox:
+      loadBalancer:
+        servers:
+          - url: "https://172.16.100.100:8006"
+        passHostHeader: true
+    eve:
+      loadBalancer:
+        servers:
+          - url: "https://172.16.0.178"
+        passHostHeader: true
+    pihole:
+      loadBalancer:
+        servers:
+          - url: "http://172.16.0.201:80"
+        passHostHeader: true
+    homebridge:
+      loadBalancer:
+        servers:
+          - url: "http://172.16.0.152:8581"
+        passHostHeader: true
+    truenas-main:
+      loadBalancer:
+        servers:
+          - url: "https://172.16.0.166"
+        passHostHeader: true
+    plex-main:
+      loadBalancer:
+        servers:
+          - url: "https://172.16.0.166:32400"
+        passHostHeader: true
+    nextcloud:
+      loadBalancer:
+        servers:
+          - url: "https://172.16.0.10"
+        passHostHeader: true
+
+#endregion
+  middlewares:
+    addprefix-pihole:
+      addPrefix:
+        prefix: "/admin"
+    https-redirectscheme:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    default-headers:
+      headers:
+        frameDeny: true
+        sslRedirect: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 15552000
+        customFrameOptionsValue: SAMEORIGIN
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+
+    nextcloud-middlewares-secure-headers:
+      headers:
+        accessControlMaxAge: 100
+        sslRedirect: true
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        customFrameOptionsValue: "SAMEORIGIN"
+        contentTypeNosniff: true
+        browserXssFilter: true
+        sslForceHost: true
+        sslHost: "nextcloud.local.example.com"
+        referrerPolicy: "no-referrer"
+        customResponseHeaders:
+          X-Forwarded-Proto: https
+          X-Robots-Tag: "noindex, nofollow"
+          server: ""
+ 
+    nextcloud-redirect:
+      redirectRegex:
+        permanent: true
+        regex: "https://(.*)/.well-known/(card|cal)dav"
+        replacement: "https://${1}/remote.php/dav/"
+
+    default-whitelist:
+      ipWhiteList:
+        sourceRange:
+        - "10.0.0.0/8"
+        - "172.16.0.0/16"
+        - "172.16.0.0/12"
+
+    secured:
+      chain:
+        middlewares:
+        - default-whitelist
+        - default-headers
